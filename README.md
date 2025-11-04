@@ -311,26 +311,38 @@ PERPLEXITY_API_KEY=your_perplexity_api_key_here
 - Go to API settings: https://www.perplexity.ai/settings/api
 - Generate a new API key
 
-**Tools Provided (1):**
+**Tools Provided (4):**
 
 | Tool | Description | Example Use |
 |------|-------------|-------------|
-| `perplexity_ask` | Ask AI questions with web search capabilities | "What's the latest AI news?" |
+| `perplexity_ask` | Q&A with web search and citations | "What's the latest AI news?" |
+| `perplexity_search` | Advanced web search with filtering (web/academic/SEC modes) | "Search academic papers about quantum computing" |
+| `perplexity_research` | Deep exhaustive research with comprehensive analysis | "Research the history and impact of the Internet" |
+| `perplexity_reason` | Logical reasoning without web search | "Explain why 2+2=4 using mathematical principles" |
 
 **Example Usage:**
 ```
 You: "Use Perplexity to explain quantum computing"
-Claude: [Uses perplexity_ask to get current information]
+Claude: [Uses perplexity_ask to get current information with citations]
 
-You: "What are the latest developments in AI?"
-Claude: [Uses perplexity_ask with real-time web search]
+You: "Search for recent academic papers on AI safety"
+Claude: [Uses perplexity_search with academic mode]
+
+You: "Do deep research on climate change impacts"
+Claude: [Uses perplexity_research for exhaustive analysis]
+
+You: "Explain the logic behind this algorithm"
+Claude: [Uses perplexity_reason for pure reasoning without web search]
 ```
 
 **Models Available:**
-- **sonar**: Fast, lightweight responses with web search (currently used)
-- Additional models available in Perplexity API documentation
+- **sonar**: Fast, lightweight responses with web search (perplexity_ask)
+- **sonar-pro**: Advanced responses with enhanced capabilities (perplexity_search)
+- **sonar-deep-research**: Exhaustive research mode (perplexity_research)
+- **sonar-reasoning**: Fast reasoning tasks (perplexity_reason)
+- **sonar-reasoning-pro**: Premier reasoning with complex logic
 
-**Note:** This is currently a minimal implementation with one core tool. The server was rebuilt to resolve a critical naming issue where the FastMCP server name must exactly match the CLI registration name.
+**Note:** This server implements the full Perplexity API capabilities. It was initially built as a minimal version to resolve a critical naming issue where the FastMCP server name must exactly match the CLI registration name, then restored to full functionality.
 
 **Key Learning from Setup:**
 ```python
