@@ -26,15 +26,15 @@
 **Date:** 2025-11-04
 
 #### Problem
-MCP servers with `mcp.json` files were not appearing in Claude Code's tool list.
+MCP servers were not appearing in Claude Code's tool list.
 
 #### Root Cause
 **Critical Misunderstanding:** Claude Code does NOT support auto-discovery of MCP servers.
 
 **Reality:**
 - MCP servers MUST be manually added using `claude mcp add` CLI command
-- The `mcp.json` files in individual server directories serve documentation purposes only
 - Configuration is stored in `/Users/aiveo/.claude.json` (user config) or project-specific `.mcp.json`
+- **Note:** `mcp.json` files in individual server directories were removed from this repository as they serve no purpose for Claude Code
 
 #### Resolution
 Use the manual configuration process:
@@ -377,6 +377,190 @@ This installed:
 
 ---
 
+### Perplexity MCP
+
+#### Issue: MCP Server Connects But Tools Don't Appear in /mcp Interface
+**Status:** Under Investigation → Resolved via Rebuild
+**Date:** 2025-11-04
+
+**Problem:**
+After creating and configuring `perplexity-mcp` server, it shows as "Connected" in `claude mcp list` but:
+- Does not appear in the `/mcp` interface (only 5 servers show instead of 6)
+- Tools are not callable (Error: No such tool available)
+- Server connects successfully and reports capabilities
+
+**Symptoms:**
+```
+✅ claude mcp list shows: perplexity-mcp - ✓ Connected
+✅ Server logs: "Successfully connected to stdio server in 213ms"
+✅ Capabilities: {"hasTools":true,"hasPrompts":true,"hasResources":true}
+✅ Debug logs show: "Processing request of type ListToolsRequest"
+❌ /mcp interface: Shows only 5 servers (perplexity-mcp missing)
+❌ Tool calls fail: "No such tool available: mcp__perplexity-mcp__perplexity_ask"
+```
+
+**What We Tried:**
+1. **Scope Configuration Changes:**
+   - Added with `--scope user` (global config)
+   - Removed and re-added with `--scope local` (project-specific)
+   - Result: Server connects but tools still not available
+
+2. **Removed Potential Conflicts:**
+   - Removed old external `perplexity` server (npx-based)
+   - Ensured no naming conflicts
+   - Result: No change, still not working
+
+3. **Multiple Session Restarts:**
+   - Exited and restarted Claude Code sessions multiple times
+   - Tried from different directories
+   - Result: Consistently shows 5 servers, not 6
+
+4. **Configuration Verification:**
+   - Confirmed server in project-level config alongside other 5 servers
+   - Verified identical configuration pattern to working servers
+   - Checked FastMCP initialization: `mcp = FastMCP("perplexity_mcp")`
+   - Confirmed tool decorators follow same pattern as asana-mcp
+   - Result: Configuration appears correct
+
+5. **Dependency & Import Checks:**
+   - Verified all dependencies installed (fastmcp, httpx, pydantic, python-dotenv)
+   - Confirmed .env file loads correctly
+   - Tested Pydantic models import successfully
+   - Verified Python syntax with no errors
+   - Result: All imports and dependencies working
+
+6. **Server Execution Tests:**
+   - Server logs show successful connection
+   - Server reports hasTools: true
+   - Server processes ListToolsRequest
+   - Working directory: `/Users/aiveo/mcp-servers` (parent)
+   - Result: Server appears to be working but tools not registered
+
+**Debug Log Evidence:**
+```
+[DEBUG] MCP server "perplexity-mcp": Starting connection with timeout of 30000ms
+[DEBUG] MCP server "perplexity-mcp": Successfully connected to stdio server in 213ms
+[DEBUG] MCP server "perplexity-mcp": Connection established with capabilities:
+        {"hasTools":true,"hasPrompts":true,"hasResources":true,
+         "serverVersion":{"name":"perplexity_mcp","version":"1.20.0"}}
+[ERROR] MCP server "perplexity-mcp" Server stderr: INFO Processing request of type ListToolsRequest
+```
+
+**Configuration Details:**
+```json
+{
+  "perplexity-mcp": {
+    "type": "stdio",
+    "command": "/Users/aiveo/.pyenv/versions/3.11.9/bin/python3",
+    "args": [
+      "/Users/aiveo/mcp-servers/perplexity_mcp/server.py"
+    ],
+    "env": {}
+  }
+}
+```
+
+**Server Structure:**
+- Location: `/Users/aiveo/mcp-servers/perplexity_mcp/`
+- Server file: `server.py` (700+ lines)
+- FastMCP version: 2.13.0.2
+- 4 tools defined: `perplexity_ask`, `perplexity_search`, `perplexity_research`, `perplexity_reason`
+- All tools properly decorated with `@mcp.tool()` and Pydantic input models
+
+**Comparison with Working Servers:**
+All 5 working servers (asana, google-calendar, google-maps, google-places, medicare-hospital):
+- ✅ Use same FastMCP initialization pattern
+- ✅ Use same tool decorator pattern
+- ✅ Located in same repository structure
+- ✅ Configured in same project-level scope
+- ✅ Show up in `/mcp` interface and tools are callable
+
+**Hypotheses Considered:**
+1. ❓ Scope/configuration issue → Tested multiple scopes, all failed
+2. ❓ Naming conflict with old server → Removed old server, no change
+3. ❓ Tool definition issue → Patterns identical to working servers
+4. ❓ Import path issue → All imports working correctly
+5. ❓ FastMCP version compatibility → Same version as working servers
+6. ❓ Complex tool definitions causing issue → **To be tested with minimal rebuild**
+
+**Resolution Approach:**
+Given that all standard troubleshooting approaches failed, decision made to:
+1. Document current findings (this entry)
+2. Create minimal 1-tool version of perplexity-mcp
+3. Test if minimal version works
+4. If minimal works: Gradually add complexity to identify breaking point
+5. If minimal fails: Deeper investigation into FastMCP/MCP protocol compatibility
+
+**Files Involved:**
+- `/Users/aiveo/mcp-servers/perplexity_mcp/server.py` (original complex version)
+- `/Users/aiveo/mcp-servers/perplexity_mcp/.env` (PERPLEXITY_API_KEY)
+- `/Users/aiveo/mcp-servers/perplexity_mcp/requirements.txt`
+- `/Users/aiveo/.claude.json` (project: /Users/aiveo/mcp-servers)
+
+**Key Learning:**
+- Server claiming `hasTools:true` doesn't guarantee tools are actually registered
+- `claude mcp list` showing "Connected" doesn't mean tools are available
+- Need to test tool availability, not just connection status
+- Complex tool definitions may require incremental testing approach
+
+**Status:** ✅ **RESOLVED**
+
+**ROOT CAUSE IDENTIFIED:**
+
+The FastMCP server internal name **MUST exactly match** the CLI registration name.
+
+**Problem:**
+```python
+# server.py - WRONG
+mcp = FastMCP("perplexity_mcp")  # ❌ Underscore
+```
+
+**Solution:**
+```python
+# server.py - CORRECT
+mcp = FastMCP("perplexity-mcp")  # ✅ Hyphen (matches CLI name)
+```
+
+**CLI Registration:**
+```bash
+claude mcp add perplexity-mcp ...  # Uses hyphen
+```
+
+**Why This Matters:**
+- The MCP protocol uses the server name for tool registration
+- If server name doesn't match CLI name, tools won't be registered
+- Server will connect successfully and report `hasTools:true`
+- But tools will NOT appear in `/mcp` interface
+- Tool calls will fail with "No such tool available"
+
+**Resolution Steps:**
+1. Backed up original complex server.py (700+ lines, 4 tools)
+2. Created minimal version (72 lines, 1 tool)
+3. Changed `FastMCP("perplexity_mcp")` → `FastMCP("perplexity-mcp")`
+4. Restarted Claude Code
+5. ✅ Server now appears in `/mcp` interface
+6. ✅ Tool `perplexity_ask` is callable and working
+
+**Test Result:**
+```
+User: "Use perplexity to tell me what is 2+2?"
+Claude: [Successfully called mcp__perplexity-mcp__perplexity_ask]
+Result: "2 + 2 = 4" ✅
+```
+
+**Critical Best Practice:**
+```python
+# Directory name:     my_service_mcp/
+# CLI registration:   claude mcp add my-service-mcp ...
+# FastMCP init:       mcp = FastMCP("my-service-mcp")  # Must match CLI name!
+```
+
+**Files Modified:**
+- `/Users/aiveo/mcp-servers/perplexity_mcp/server.py` (rebuilt minimal)
+- `/Users/aiveo/mcp-servers/perplexity_mcp/server.py.backup` (original preserved)
+
+---
+
 ## Common Solutions
 
 ### Debugging MCP Connection Issues
@@ -488,6 +672,11 @@ Before adding a new MCP server to Claude Code:
 
 ### 4. Configuration Standards
 - Use kebab-case for server names with `-mcp` suffix (e.g., `google-maps-mcp`)
+- **CRITICAL:** FastMCP server name MUST exactly match CLI registration name
+  ```python
+  # CLI: claude mcp add my-service-mcp ...
+  # Code: mcp = FastMCP("my-service-mcp")  # Must match!
+  ```
 - Keep server names consistent across CLI, code, and documentation
 - Document all required environment variables in README.md and `.env.example`
 

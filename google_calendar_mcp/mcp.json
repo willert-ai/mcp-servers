@@ -1,7 +1,0 @@
-{
-  "name": "google-calendar-mcp",
-  "description": "Google Calendar MCP Server for managing events, checking availability, and searching calendars",
-  "command": "/Users/aiveo/.pyenv/versions/3.11.9/bin/python3",
-  "args": ["google_calendar_mcp.py"],
-  "env": {}
-}
