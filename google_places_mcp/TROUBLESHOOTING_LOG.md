@@ -256,19 +256,312 @@ cd /Users/aiveo/mcp-servers/google_places_mcp
 
 **Configuration Status:** ✅ ALL CHECKS PASSED
 **Installation Status:** ✅ COMPLETE
-**Current Status:** ⚠️ AWAITING CLAUDE CODE RESTART
-**Action Required:** Restart Claude Code to trigger auto-discovery
-
-**Confidence Level:** HIGH - Configuration is correct, restart should resolve the issue
+**Current Status:** ✅ RESOLVED (2025-11-04)
+**Resolution Method:** Manual configuration via CLI
 
 ---
 
-## Additional Notes
+## ROOT CAUSE ANALYSIS
 
-- All mcp.json files follow the correct naming convention (kebab-case with `-mcp` suffix)
-- All dependencies are properly installed
-- API keys are configured via .env files
-- Server code structure is valid
-- Other MCP servers in the same directory use identical configuration patterns
+### Critical Misunderstanding: Auto-Discovery Myth
 
-**Next Update:** After Claude Code restart, document whether tools appear and are functional.
+**Initial Assumption (INCORRECT):**
+- Believed Claude Code automatically discovers MCP servers from directories containing `mcp.json` files
+- Expected servers to load on restart without manual configuration
+- Created elaborate directory structure based on this false assumption
+
+**Reality (CORRECT):**
+- **Claude Code does NOT support auto-discovery**
+- MCP servers MUST be manually added using `claude mcp add` CLI command
+- The `mcp.json` files in individual server directories serve **no purpose** for Claude Code
+- Configuration is stored in `/Users/aiveo/.claude.json` (user config) or project-specific `.mcp.json`
+
+**Source of Confusion:**
+- Claude Desktop (different product) uses JSON configuration files
+- Documentation may have been misinterpreted or outdated README was created
+- The `/Users/aiveo/mcp-servers/README.md` incorrectly documented auto-discovery
+
+---
+
+## ACTUAL ISSUES ENCOUNTERED
+
+### Issue #1: Fundamental Configuration Misunderstanding ⚠️
+
+**Problem:**
+- Created `mcp.json` files in each server directory expecting auto-discovery
+- No servers appeared in Claude Code because they were never actually registered
+- Only asana and google-calendar appeared because they were manually configured previously (with old paths)
+
+**Evidence:**
+```bash
+# Only these servers had log directories (meaning they were actually configured):
+/Users/aiveo/Library/Caches/claude-cli-nodejs/-Users-aiveo-mcp-servers/
+├── mcp-logs-asana/
+├── mcp-logs-google-calendar/
+└── mcp-logs-perplexity/
+
+# These servers had NO log directories (never configured):
+- google-places-mcp (MISSING)
+- google-maps-mcp (MISSING)
+- medicare-hospital-mcp (MISSING)
+```
+
+**Resolution:**
+- Corrected understanding: Claude Code requires manual `claude mcp add` commands
+- Updated README.md to remove all auto-discovery references
+- Documented proper manual configuration process
+
+---
+
+### Issue #2: Old/Incorrect MCP Configurations ⚠️
+
+**Problem:**
+- asana and google-calendar were configured but failing to connect
+- Error logs showed: `pyenv: python: command not found`
+
+**Root Causes:**
+
+**A) Wrong Python Command:**
+```json
+// OLD CONFIGURATION (WRONG):
+{
+  "asana": {
+    "command": "python",  // ❌ pyenv doesn't have 'python' alias
+    "args": ["/Users/aiveo/asana_mcp/asana_mcp.py"]
+  }
+}
+```
+
+**B) Old/Outdated Paths:**
+```json
+// OLD PATHS (WRONG):
+"/Users/aiveo/asana_mcp/asana_mcp.py"           // ❌ Old location
+"/Users/aiveo/google_calendar_mcp/google_calendar_mcp.py"  // ❌ Old location
+
+// NEW PATHS (CORRECT):
+"/Users/aiveo/mcp-servers/asana_mcp/asana_mcp.py"
+"/Users/aiveo/mcp-servers/google_calendar_mcp/google_calendar_mcp.py"
+```
+
+**Evidence from Logs:**
+```json
+{
+  "error": "Server stderr: pyenv: python: command not found\n\nThe `python' command exists in these Python versions:\n  3.11.9",
+  "timestamp": "2025-11-04T00:38:55.752Z"
+}
+```
+
+**Resolution:**
+- Removed old configurations: `claude mcp remove asana` and `claude mcp remove google-calendar`
+- Used correct Python path: `/Users/aiveo/.pyenv/versions/3.11.9/bin/python3`
+- Updated all paths to new centralized location: `/Users/aiveo/mcp-servers/`
+
+---
+
+### Issue #3: Missing Dependencies (google-maps-mcp) ⚠️
+
+**Problem:**
+- After adding google-maps-mcp, it failed to connect
+- Server crashed on startup with module import error
+
+**Error Log:**
+```json
+{
+  "error": "Server stderr: Traceback (most recent call last):\n  File \"/Users/aiveo/mcp-servers/google_maps_mcp/server.py\", line 23, in <module>",
+  "error": "Server stderr: import googlemaps\nModuleNotFoundError: No module named 'googlemaps'"
+}
+```
+
+**Root Cause:**
+- The `googlemaps` package was not installed in the Python environment
+- `requirements.txt` existed but dependencies were never installed
+
+**Resolution:**
+```bash
+cd /Users/aiveo/mcp-servers/google_maps_mcp
+/Users/aiveo/.pyenv/versions/3.11.9/bin/python3 -m pip install -r requirements.txt
+```
+
+**Lesson Learned:**
+- Always verify dependencies are installed before adding MCP server to Claude Code
+- Add dependency check to standard setup procedure
+
+---
+
+## CORRECT CONFIGURATION PROCESS
+
+### Step 1: Remove Old/Broken Configurations
+```bash
+# List current servers
+claude mcp list
+
+# Remove any broken servers
+claude mcp remove asana
+claude mcp remove google-calendar
+```
+
+### Step 2: Verify Dependencies
+```bash
+cd /Users/aiveo/mcp-servers/<server_directory>
+/Users/aiveo/.pyenv/versions/3.11.9/bin/python3 -m pip install -r requirements.txt
+```
+
+### Step 3: Add Server with Correct Syntax
+```bash
+claude mcp add --transport stdio <server-name> -- \
+  /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 \
+  /Users/aiveo/mcp-servers/<server_directory>/<script_name>.py
+```
+
+**Key Points:**
+- Use `--transport stdio` for Python-based servers
+- Use `--` separator before the command
+- Use absolute paths for both Python executable and script
+- Server name should use kebab-case with `-mcp` suffix
+
+### Step 4: Verify Connection
+```bash
+claude mcp list
+# All servers should show: ✓ Connected
+```
+
+---
+
+## FINAL WORKING CONFIGURATION
+
+### All Servers Successfully Added:
+
+```bash
+# 1. google-places-mcp
+claude mcp add --transport stdio google-places-mcp -- \
+  /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 \
+  /Users/aiveo/mcp-servers/google_places_mcp/server.py
+
+# 2. google-maps-mcp
+claude mcp add --transport stdio google-maps-mcp -- \
+  /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 \
+  /Users/aiveo/mcp-servers/google_maps_mcp/server.py
+
+# 3. asana-mcp
+claude mcp add --transport stdio asana-mcp -- \
+  /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 \
+  /Users/aiveo/mcp-servers/asana_mcp/asana_mcp.py
+
+# 4. google-calendar-mcp
+claude mcp add --transport stdio google-calendar-mcp -- \
+  /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 \
+  /Users/aiveo/mcp-servers/google_calendar_mcp/google_calendar_mcp.py
+
+# 5. medicare-hospital-mcp
+claude mcp add --transport stdio medicare-hospital-mcp -- \
+  /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 \
+  /Users/aiveo/mcp-servers/medicare_hospital_mcp/server.py
+```
+
+### Verification Results:
+```
+✓ perplexity - Connected
+✓ google-places-mcp - Connected
+✓ google-maps-mcp - Connected
+✓ asana-mcp - Connected
+✓ google-calendar-mcp - Connected
+✓ medicare-hospital-mcp - Connected
+```
+
+---
+
+## LESSONS LEARNED
+
+### 1. Documentation Accuracy ⚠️
+**Problem:** Created README.md with incorrect auto-discovery information
+**Lesson:** Always verify documentation against official sources before creating setup guides
+**Action:** Updated `/Users/aiveo/mcp-servers/README.md` to reflect correct manual configuration process
+
+### 2. Configuration Location 📁
+**Learned:** Claude Code stores MCP configuration in `/Users/aiveo/.claude.json`
+**Impact:** Understanding this helps debug configuration issues
+**Note:** Configuration can be at different scopes (local, user, project)
+
+### 3. Python Environment Specificity 🐍
+**Problem:** Using generic `python` command failed in pyenv
+**Lesson:** Always use absolute path to specific Python version
+**Best Practice:** `/Users/aiveo/.pyenv/versions/3.11.9/bin/python3` (not `python3` or `python`)
+
+### 4. Dependency Installation ⚙️
+**Problem:** Server code existed but dependencies weren't installed
+**Lesson:** Always run `pip install -r requirements.txt` before adding server
+**Best Practice:** Add dependency check to standard setup checklist
+
+### 5. Log File Debugging 🔍
+**Learned:** Claude Code creates detailed logs at:
+`/Users/aiveo/Library/Caches/claude-cli-nodejs/-Users-aiveo-mcp-servers/mcp-logs-<server-name>/`
+**Impact:** These logs are invaluable for debugging connection failures
+**Best Practice:** Always check logs when server shows "Failed to connect"
+
+### 6. CLI Help Commands 💡
+**Learned:** `claude mcp add --help` provides exact syntax and examples
+**Lesson:** Always check CLI help before assuming command structure
+**Impact:** Saved time by understanding correct `--` separator syntax
+
+---
+
+## PREVENTION CHECKLIST FOR FUTURE MCP INSTALLATIONS
+
+### Before Adding New MCP Server:
+
+- [ ] Verify server code exists at intended location
+- [ ] Check `requirements.txt` exists
+- [ ] Install dependencies: `/Users/aiveo/.pyenv/versions/3.11.9/bin/python3 -m pip install -r requirements.txt`
+- [ ] Test server can import: `python3 -c "import <module>; print('Success')"`
+- [ ] Test server runs: `python3 server.py` (should wait for stdin without errors)
+- [ ] Verify API keys in `.env` file (if required)
+- [ ] Use `claude mcp add --help` to confirm syntax
+- [ ] Add server with absolute paths
+- [ ] Verify connection: `claude mcp list`
+- [ ] Check logs if failed: `/Users/aiveo/Library/Caches/claude-cli-nodejs/-Users-aiveo-mcp-servers/mcp-logs-<name>/`
+
+---
+
+## REFERENCE: CORRECT COMMAND SYNTAX
+
+### General Template:
+```bash
+claude mcp add --transport stdio <server-name> -- \
+  <absolute-path-to-python> \
+  <absolute-path-to-script>
+```
+
+### Real Example:
+```bash
+claude mcp add --transport stdio my-service-mcp -- \
+  /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 \
+  /Users/aiveo/mcp-servers/my_service_mcp/server.py
+```
+
+### Key Elements:
+- `--transport stdio` - For process-based servers (Python, Node.js)
+- `--` - Separator between Claude Code options and the command
+- Absolute paths only (no relative paths)
+- Server name in kebab-case with `-mcp` suffix
+
+---
+
+## FINAL STATUS
+
+**Date Resolved:** 2025-11-04
+**Total Time to Resolution:** ~2 hours (including investigation)
+**Primary Blocker:** Incorrect assumption about auto-discovery
+**Secondary Issues:** Wrong Python command, old paths, missing dependencies
+
+**All Issues Resolved:**
+- ✅ Corrected fundamental understanding of Claude Code MCP configuration
+- ✅ Updated all documentation to reflect manual configuration requirement
+- ✅ Removed old/broken configurations
+- ✅ Added all 5 MCP servers with correct paths and commands
+- ✅ Verified all servers connected successfully
+- ✅ Documented comprehensive troubleshooting process for future reference
+
+**Next Steps:**
+- Monitor server stability over next few sessions
+- Create standard setup script for future MCP server additions
+- Consider creating `.env.example` files in each server directory

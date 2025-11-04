@@ -1,91 +1,134 @@
 # MCP Servers Directory
 
-This directory contains Model Context Protocol (MCP) servers for Claude Code auto-discovery.
+This directory contains Model Context Protocol (MCP) servers for Claude Code.
 
-## Auto-Discovery Requirement
+## Manual Configuration Requirement
 
-**IMPORTANT**: For Claude Code to automatically discover and load MCP servers from this directory, each server **MUST** include an `mcp.json` configuration file in its root directory.
+**IMPORTANT**: Claude Code does **NOT** use auto-discovery. MCP servers must be manually added using the `claude mcp add` CLI command or by configuring them in Claude Code's settings.
 
-### Required: `mcp.json` Configuration File
+### MCP Server Structure
 
-Every MCP server in this directory must have an `mcp.json` file with the following structure:
+Each MCP server in this directory should follow this structure for organization and documentation purposes (though Claude Code requires manual configuration via CLI):
 
-```json
-{
-  "name": "service-name-mcp",
-  "description": "Brief description of what this MCP server does",
-  "command": "python3",
-  "args": ["server.py"],
-  "env": {}
-}
-```
-
-### Configuration Fields
-
-- **name** (required): Unique identifier for the MCP server. Must use kebab-case with `-mcp` suffix (e.g., `"asana-mcp"`, `"google-calendar-mcp"`)
-- **description** (required): Clear description of the server's functionality
-- **command** (required): Command to execute the server (e.g., `python3`, `node`, `uvx`)
-- **args** (required): Array of arguments passed to the command (e.g., `["server.py"]`)
-- **env** (required): Environment variables object. Use empty `{}` when loading from `.env` file (recommended for security)
-
-### Example Directory Structure
-
+**Directory Structure:**
 ```
 mcp-servers/
-├── README.md (this file)
-├── google_places_mcp/
-│   ├── mcp.json          ← REQUIRED for auto-discovery
-│   ├── server.py
-│   ├── requirements.txt
-│   ├── .env
-│   └── README.md
-├── asana_mcp/
-│   ├── mcp.json          ← REQUIRED for auto-discovery
-│   ├── asana_mcp.py
-│   ├── requirements.txt
-│   └── README.md
-└── your_new_mcp/
-    ├── mcp.json          ← REQUIRED for auto-discovery
-    ├── server.py
-    └── ...
+├── service_name_mcp/          ← Directory uses underscores + _mcp suffix
+│   ├── server.py              ← Your server implementation
+│   ├── requirements.txt       ← Python dependencies
+│   ├── .env                   ← API keys/secrets (gitignored)
+│   └── README.md              ← Server documentation
 ```
 
-## Creating a New MCP Server
+**Required for Claude Code:**
+- Absolute path to Python executable (e.g., `/Users/aiveo/.pyenv/versions/3.11.9/bin/python3`)
+- Absolute path to server file (e.g., `/Users/aiveo/mcp-servers/service_name_mcp/server.py`)
+- Environment variables configured via `.env` file in server directory
 
-When creating a new MCP server in this directory:
+## Adding MCP Servers to Claude Code
 
-1. **Create your MCP server directory** with your server code
-2. **Create `mcp.json`** in the server's root directory with proper configuration
-3. **Restart Claude Code** to auto-discover the new server
-4. **Verify** the server tools appear with prefix `mcp__<server-name>__*`
+### Method 1: Using CLI (Recommended)
 
-### Step-by-Step Example
+Add servers using the `claude mcp add` command with absolute paths:
 
 ```bash
-# 1. Create new MCP server directory (use underscores + _mcp suffix)
-mkdir -p ~/mcp-servers/my_service_mcp
+# Add a Python-based MCP server
+claude mcp add my-service-mcp \
+  --type stdio \
+  --command /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 \
+  --arg /Users/aiveo/mcp-servers/my_service_mcp/server.py
 
-# 2. Add your server code
-cd ~/mcp-servers/my_service_mcp
-# ... create server.py, requirements.txt, etc.
+# Verify it was added
+claude mcp list
+```
 
-# 3. Create .env file for API keys/tokens (if needed)
-cat > .env << 'EOF'
-API_KEY=your_secret_key_here
+### Method 2: Batch Configuration
+
+To configure all servers in this directory at once, use this helper script:
+
+```bash
+cd /Users/aiveo/mcp-servers
+
+# Remove old/broken configurations first
+claude mcp remove asana 2>/dev/null || true
+claude mcp remove google-calendar 2>/dev/null || true
+
+# Add all servers with correct paths
+claude mcp add google-places-mcp \
+  --type stdio \
+  --command /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 \
+  --arg /Users/aiveo/mcp-servers/google_places_mcp/server.py
+
+claude mcp add google-maps-mcp \
+  --type stdio \
+  --command /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 \
+  --arg /Users/aiveo/mcp-servers/google_maps_mcp/server.py
+
+claude mcp add asana-mcp \
+  --type stdio \
+  --command /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 \
+  --arg /Users/aiveo/mcp-servers/asana_mcp/asana_mcp.py
+
+claude mcp add google-calendar-mcp \
+  --type stdio \
+  --command /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 \
+  --arg /Users/aiveo/mcp-servers/google_calendar_mcp/google_calendar_mcp.py
+
+claude mcp add medicare-hospital-mcp \
+  --type stdio \
+  --command /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 \
+  --arg /Users/aiveo/mcp-servers/medicare_hospital_mcp/server.py
+
+# Verify all servers
+claude mcp list
+```
+
+### Creating a New MCP Server
+
+1. **Create server directory** in `/Users/aiveo/mcp-servers/`
+2. **Implement your server** in Python using FastMCP
+3. **Create .env file** for API keys (if needed)
+4. **Add to Claude Code** using `claude mcp add`
+5. **Verify** with `claude mcp list`
+
+**Example:**
+```bash
+# 1. Create directory
+mkdir -p /Users/aiveo/mcp-servers/my_service_mcp
+cd /Users/aiveo/mcp-servers/my_service_mcp
+
+# 2. Create server.py
+cat > server.py << 'EOF'
+from mcp.server.fastmcp import FastMCP
+import os
+
+mcp = FastMCP("my_service_mcp")
+
+@mcp.tool()
+def my_tool(query: str) -> str:
+    """My tool description"""
+    return f"Result for: {query}"
+
+if __name__ == "__main__":
+    mcp.run()
 EOF
 
-# 4. Create mcp.json (name uses hyphens + -mcp suffix)
-cat > mcp.json << 'EOF'
-{
-  "name": "my-service-mcp",
-  "description": "Description of what my server does",
-  "command": "python3",
-  "args": ["server.py"],
-  "env": {}
-}
+# 3. Create requirements.txt
+cat > requirements.txt << 'EOF'
+fastmcp
+httpx
+pydantic
+pydantic-settings
 EOF
 
-# 5. Restart Claude Code to load the new server
+# 4. Install dependencies
+/Users/aiveo/.pyenv/versions/3.11.9/bin/python3 -m pip install -r requirements.txt
+
+# 5. Add to Claude Code
+claude mcp add my-service-mcp \
+  --type stdio \
+  --command /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 \
+  --arg /Users/aiveo/mcp-servers/my_service_mcp/server.py
 ```
 
 ## Environment Variables & Security
@@ -232,29 +275,56 @@ Current MCP servers in this directory:
 
 ## Troubleshooting
 
-### Server not appearing after restart
+### Server not appearing in `claude mcp list`
 
-1. **Check `mcp.json` exists** in the server's root directory
-2. **Validate JSON syntax** using `cat mcp.json | python3 -m json.tool`
-3. **Check file paths** in `args` field are correct
-4. **Verify command** in `command` field is available (`which python3`)
-5. **Restart Claude Code** completely
+1. **Add the server manually** using `claude mcp add` (Claude Code does NOT use auto-discovery)
+2. **Check absolute paths** - both Python executable and server file must use absolute paths
+3. **Verify Python path** - use `/Users/aiveo/.pyenv/versions/3.11.9/bin/python3` (not just `python` or `python3`)
+4. **Run `claude mcp list`** to verify configuration
 
-### Server appears but tools don't work
+### Server appears but shows "Failed to connect"
 
-1. **Check server logs** for errors
-2. **Verify dependencies** are installed (`pip install -r requirements.txt`)
-3. **Check environment variables** are set correctly
-4. **Test server manually**: `python3 server.py` (if applicable)
+1. **Check Python executable path** - ensure it's the correct absolute path
+2. **Verify server file path** - ensure absolute path to server.py is correct
+3. **Check server logs** in `/Users/aiveo/Library/Caches/claude-cli-nodejs/-Users-aiveo-mcp-servers/mcp-logs-<server-name>/`
+4. **Test server manually**:
+   ```bash
+   cd /Users/aiveo/mcp-servers/<server_name>
+   /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 server.py
+   # Should wait for stdin without errors
+   ```
+5. **Verify dependencies** are installed:
+   ```bash
+   cd /Users/aiveo/mcp-servers/<server_name>
+   /Users/aiveo/.pyenv/versions/3.11.9/bin/python3 -m pip install -r requirements.txt
+   ```
+6. **Check .env file** exists and contains required API keys
 
-### How to verify auto-discovery worked
+### How to verify servers are working
 
-After restarting Claude Code, your tools should appear with the naming pattern:
-- `mcp__<server-name>__<tool-name>`
+1. **List all configured servers:**
+   ```bash
+   claude mcp list
+   ```
 
-Example: `mcp__google-places-mcp__google_places_nearby_search`
+2. **Check for connection status:**
+   - ✓ Connected - server is working
+   - ✗ Failed to connect - check logs and troubleshoot
 
-Note: The tool prefix uses the **mcp.json name** (with hyphens), not the directory name.
+3. **Verify tools are available** in Claude Code:
+   - Tools should appear with prefix `mcp__<server-name>__<tool-name>`
+   - Example: `mcp__google-places-mcp__google_places_nearby_search`
+
+### Removing/Updating Servers
+
+```bash
+# Remove a server
+claude mcp remove <server-name>
+
+# Update a server (remove and re-add with new configuration)
+claude mcp remove <server-name>
+claude mcp add <server-name> --type stdio --command <path> --arg <path>
+```
 
 ## Additional Resources
 
@@ -265,17 +335,18 @@ Note: The tool prefix uses the **mcp.json name** (with hyphens), not the directo
 ## 🎯 Benefits of This Organization
 
 ✅ **Single Location** - All MCPs in one centralized directory
-✅ **Auto-Discovery** - Claude Code automatically finds and loads all MCPs with `mcp.json`
 ✅ **Consistent Naming** - Easy to find and identify with standard `{service}_mcp` pattern
-✅ **Easy Management** - Simple to add/remove/update MCPs
+✅ **Easy Management** - Simple to add/remove/update MCPs using `claude mcp` commands
 ✅ **Clear Structure** - Professional organization with documentation
 ✅ **Version Control Ready** - Can be backed up/versioned together
+✅ **Reusable Paths** - Absolute paths make configuration explicit and reliable
 
 ## 📝 Version History
 
-- **2025-11-03**: Created README with auto-discovery requirements
+- **2025-11-04**: **CORRECTED** - Removed auto-discovery references; Claude Code requires manual configuration via `claude mcp add`
+- **2025-11-04**: Updated all documentation to reflect proper manual MCP configuration process
+- **2025-11-04**: Added troubleshooting section for manual configuration issues
+- **2025-11-03**: Created README with initial organization structure
 - **2025-11-03**: Added naming conventions and organizational structure
 - **2025-11-03**: Migrated all MCPs to centralized location with consistent naming
-- **2025-11-03**: Standardized all mcp.json names with `-mcp` suffix (kebab-case)
 - **2025-11-03**: Enhanced security documentation for `.env` file handling
-- **2025-11-03**: Clarified two-part naming system (directories vs mcp.json names)
