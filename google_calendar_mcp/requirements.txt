@@ -1,0 +1,6 @@
+mcp
+httpx
+pydantic
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
