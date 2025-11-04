@@ -15,6 +15,10 @@ from enum import Enum
 import httpx
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from mcp.server.fastmcp import FastMCP
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Initialize the MCP server
 mcp = FastMCP("asana_mcp")
@@ -50,6 +54,10 @@ def _get_api_headers() -> Dict[str, str]:
         "Accept": "application/json",
         "Content-Type": "application/json"
     }
+
+def _get_default_workspace_gid() -> Optional[str]:
+    """Get default workspace GID from environment variable."""
+    return os.getenv("ASANA_DEFAULT_WORKSPACE_GID")
 
 async def _make_api_request(
     endpoint: str,
@@ -180,8 +188,8 @@ class ListTasksInput(BaseModel):
     )
 
     workspace_gid: Optional[str] = Field(
-        default=None,
-        description="Workspace GID to list tasks from. If not provided, lists your 'My Tasks'"
+        default_factory=_get_default_workspace_gid,
+        description="Workspace GID to list tasks from (defaults to ASANA_DEFAULT_WORKSPACE_GID env var if set)"
     )
     assignee: Optional[str] = Field(
         default="me",
@@ -226,8 +234,8 @@ class CreateTaskInput(BaseModel):
         max_length=65536
     )
     workspace_gid: Optional[str] = Field(
-        default=None,
-        description="Workspace GID (required if no project specified)"
+        default_factory=_get_default_workspace_gid,
+        description="Workspace GID (defaults to ASANA_DEFAULT_WORKSPACE_GID env var if set)"
     )
     project_gid: Optional[str] = Field(
         default=None,
@@ -302,9 +310,9 @@ class SearchTasksInput(BaseModel):
         extra='forbid'
     )
 
-    workspace_gid: str = Field(
-        ...,
-        description="Workspace GID to search in (required)"
+    workspace_gid: Optional[str] = Field(
+        default_factory=_get_default_workspace_gid,
+        description="Workspace GID to search in (defaults to ASANA_DEFAULT_WORKSPACE_GID env var if set)"
     )
     text: Optional[str] = Field(
         default=None,
@@ -342,9 +350,9 @@ class ListProjectsInput(BaseModel):
         extra='forbid'
     )
 
-    workspace_gid: str = Field(
-        ...,
-        description="Workspace GID (required)"
+    workspace_gid: Optional[str] = Field(
+        default_factory=_get_default_workspace_gid,
+        description="Workspace GID (defaults to ASANA_DEFAULT_WORKSPACE_GID env var if set)"
     )
     archived: bool = Field(
         default=False,
@@ -473,9 +481,9 @@ class WorkspaceGidInput(BaseModel):
         extra='forbid'
     )
 
-    workspace_gid: str = Field(
-        ...,
-        description="Workspace GID (required)"
+    workspace_gid: Optional[str] = Field(
+        default_factory=_get_default_workspace_gid,
+        description="Workspace GID (defaults to ASANA_DEFAULT_WORKSPACE_GID env var if set)"
     )
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,
@@ -814,6 +822,9 @@ async def asana_search_tasks(params: SearchTasksInput) -> str:
         str: Formatted search results
     """
     try:
+        if not params.workspace_gid:
+            return "Error: workspace_gid is required. Please set ASANA_DEFAULT_WORKSPACE_GID in .env or provide it explicitly."
+
         api_params = {
             "opt_fields": "name,notes,completed,due_on,assignee.name,projects.name",
             "limit": params.limit
@@ -874,6 +885,9 @@ async def asana_list_projects(params: ListProjectsInput) -> str:
         str: Formatted list of projects
     """
     try:
+        if not params.workspace_gid:
+            return "Error: workspace_gid is required. Please set ASANA_DEFAULT_WORKSPACE_GID in .env or provide it explicitly."
+
         api_params = {
             "workspace": params.workspace_gid,
             "archived": str(params.archived).lower(),
@@ -1296,6 +1310,9 @@ async def asana_list_tags(params: WorkspaceGidInput) -> str:
         str: Formatted list of tags
     """
     try:
+        if not params.workspace_gid:
+            return "Error: workspace_gid is required. Please set ASANA_DEFAULT_WORKSPACE_GID in .env or provide it explicitly."
+
         api_params = {
             "workspace": params.workspace_gid
         }

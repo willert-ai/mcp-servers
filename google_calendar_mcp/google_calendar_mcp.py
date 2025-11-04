@@ -16,6 +16,10 @@ from zoneinfo import ZoneInfo
 import httpx
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from mcp.server.fastmcp import FastMCP
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Initialize the MCP server
 mcp = FastMCP("google_calendar_mcp")
